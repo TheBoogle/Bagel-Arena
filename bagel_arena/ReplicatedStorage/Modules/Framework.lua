@@ -3,14 +3,13 @@
 local module = {}
 local MT = {__index = module}
 local self = {}
-local Debugger = require(game.ReplicatedStorage.Modules.Debugger)
+local Debugger = require(game.ReplicatedStorage.Modules.Debugger) 
 
-local spring = require(game.ReplicatedStorage.Modules.SpringModule)
+local spring = require(game.ReplicatedStorage.Modules.SpringModule) -- This is used for viewmodel sway and viewbobbing.
 
-local current = 0
+local current = 0 -- Current is the current tick of viewbobbing, you don't need to change this.
 
 local GlobalSpring = spring.new(0)
-
 GlobalSpring.Speed = 25
 GlobalSpring.Damper = 0.35
 
@@ -19,7 +18,7 @@ local TAU = math.pi * 2
 
 local RS = game:GetService('RunService')
 
-function sleep(length)
+function sleep(length) -- Custom sleep function I wrote which helps fix a few bugs with Roblox's default wait() function
 	if not length then length = 1/30 end
 	local startTick = tick()
 
@@ -27,10 +26,28 @@ function sleep(length)
 
 end
 
+local function lerp(a, b, c)
+	return a + ((b - a) * c)
+end
+
+function isGrounded(rootPart, Height)
+	
+	local params = RaycastParams.new()
+
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	
+	params.FilterDescendantsInstances = rootPart.Parent:GetDescendants()
+	
+	local result = workspace:Raycast(rootPart.Position, Vector3.new(0,-1,0) * Height, params)
+	
+	if result then
+		return true
+	end
+	
+end
 
 function calcBob(RootPart, DT, Y, camLook)
 	local bob
-	local cycle
 	
 	current = current + (0.025 * (DT*100))
 	
@@ -55,63 +72,53 @@ function calcBob(RootPart, DT, Y, camLook)
 end
 
 function module.new(args)
-	
-	self = {}
+	self = {} -- Clean the self table.
 
+	self.HitMarkerNoise = game.ReplicatedStorage.Sounds.Hitmarker:Clone() -- Creates a new hitmarker noise
 	
+	self.DamageIndicator = game.ReplicatedStorage.Parts.DamageIndicator:Clone() -- Creates a new damage indicator
 	
+	self.WeaponModule = nil -- Clears the current weapon module
 	
-	self.HitMarkerNoise = game.ReplicatedStorage.Sounds.Hitmarker:Clone()
-	
-	self.DamageIndicator = game.ReplicatedStorage.Parts.DamageIndicator:Clone()
-	
-	self.WeaponModule = nil
-	
-	self.ViewHeight = -0.25
+	self.ViewHeight = -0.25 -- You could change -0.25 to args.ViewHeight and then pass that in the client init, I am just lazy
 	
 	for k, v in pairs(args) do
-		self[k] = v
+		self[k] = v -- Updates our self table with all of our arguments
 	end
 	
-	args.Cam.CameraType = Enum.CameraType.Scriptable
+	args.Cam.CameraType = Enum.CameraType.Scriptable -- Sets the camera to scriptable so we can use our
 	
-	self.Spring = spring.new(Vector3.new())
+	self.Spring = spring.new(Vector3.new()) -- Creates a new 3D spring
 	
-	self.HitMarkerNoise.Parent = self.Cam
+	self.HitMarkerNoise.Parent = self.Cam -- Parents the hitmarker noise to the camera so the player can always hear it.
 	
-	self.KillNoise = game.ReplicatedStorage.Sounds.KillIndicator:Clone()
-	self.KillNoise.Parent = self.Cam
+	self.KillNoise = game.ReplicatedStorage.Sounds.KillIndicator:Clone() -- Kill indicator noise
+	self.KillNoise.Parent = self.Cam -- same as above
 	
-
-	
-	local Player = game.Players.LocalPlayer
-	
-
-	
-	self.Cooldown = false
+	self.Cooldown = false -- Used to prevent spam firing
 	
 	self.CurrentGun = {
-		['Instance'] = nil,
+		['Instance'] = nil, -- Creates a new class for weapons
 		
 	}
-	self.Firing = false
+	self.Firing = false -- Tells the game we are firing or not
 	
-	self.cameraRotation = Vector2.new()
+	self.cameraRotation = Vector2.new() -- Used for custom camera
 	
 	
-	Debugger.UpdateValue("FragCount", _G.Frags)
+	Debugger.UpdateValue("FragCount", _G.Frags) -- Adds the FragCounter to the debugger
 	
 	return setmetatable(self, MT)
 end
 
-function module:Equip(GunName)
-	game.ReplicatedStorage.Remotes.Isfiring:FireServer(false, self.CurrentWeaponName)
+function module:Equip(GunName) -- Main equip function
+	game.ReplicatedStorage.Remotes.Isfiring:FireServer(false, self.CurrentWeaponName) -- Tells the server we are not firing currently.
 	
 	game.ReplicatedStorage.Remotes.Fragged.OnClientEvent:Connect(function(Result)
-		self:_kill(Result)
+		self:_kill(Result) -- Runs this function if the server says we killed someone
 	end)
 	
-	if self.CurrentGun then
+	if self.CurrentGun then -- If there is currently a gun equipped, this will unequip it.
 		
 		if self.CurrentGun.Instance then
 			self.CurrentGun.Instance:Destroy()
@@ -123,17 +130,16 @@ function module:Equip(GunName)
 		}
 	end
 	
-	self.Firing = false
+	self.Firing = false -- Tells game we are not firing
 	
+	self.WeaponModule = require(game.ReplicatedStorage.Modules.Weapons[GunName]) -- Finds our new weapon module to use
 	
-	self.WeaponModule = require(game.ReplicatedStorage.Modules.Weapons[GunName])
+	self.ModulePath = game.ReplicatedStorage.Modules.Weapons[GunName] -- Used later.
 	
-	self.ModulePath = game.ReplicatedStorage.Modules.Weapons[GunName]
+	if not self.WeaponModule then return end -- If the game couldn't find our weapon module it will end the code.
 	
-	if not self.WeaponModule then return end
-	
-	self.CurrentGun.Instance = self.WeaponModule.Model:Clone()
-	self.CurrentGun.Instance:SetPrimaryPartCFrame(CFrame.new(0,100000,0))
+	self.CurrentGun.Instance = self.WeaponModule.Model:Clone() -- Clones the weapon model and sets it as the instance in the weapon class
+	self.CurrentGun.Instance:SetPrimaryPartCFrame(CFrame.new(0,100000,0)) -- Moves the gun super far away so we don't see it loading in.
 	self.CurrentGun.Instance.Parent = self.Cam
 	
 	self.CurrentWeaponName = GunName
@@ -143,52 +149,42 @@ function module:Equip(GunName)
 	local Anim = Instance.new("Animation")
 	Anim.AnimationId = self.WeaponModule.FireAnimation
 	
-	self.FireAnimation = self.CurrentGun.Instance.AnimationController:LoadAnimation(Anim)
+	self.FireAnimation = self.CurrentGun.Instance.AnimationController:LoadAnimation(Anim) -- Loads our fire animation
 	
+	-- local IAnim = Instance.new("Animation")
+	-- IAnim.AnimationId = self.WeaponModule.IdleAnimation
+	
+	-- self.IdleAnimation = self.CurrentGun.Instance.AnimationController:LoadAnimation(IAnim) -- Loads our idle animation 
+	
+	-- ^^^ This would be an example of adding idle animations
+
 	if self.WeaponModule.Type ~= 'laser' then
-		self.FireAnimation.Looped = false
+		self.FireAnimation.Looped = false -- If the weapon is not an automatic weapon(laser) then looped is disabled
 	end
 	
-	Anim:Destroy()
+	Anim:Destroy() -- Destroys the animation
+	-- IAnim:Destroy()
+
+	self.Tween = nil -- Used later
 	
-	self.Tween = nil
-	
-	Debugger.UpdateValue("EquippedGun", self.WeaponModule.Model.Name)
+	Debugger.UpdateValue("EquippedGun", self.WeaponModule.Model.Name) -- Updates our equipped gun
 	
 	
 	for _, v in pairs(self.CurrentGun.Instance:GetDescendants()) do
 		if self.WeaponModule.Type == 'laser' and v:IsA("Beam") or v:IsA("Light") or v:IsA("ParticleEmitter") then
-			v.Enabled = false
+			v.Enabled = false -- Disables visuals when spawning a weapon
 		end
 	end
 	
-	self.CanFire = false
+	self.CanFire = false -- Prevents too much quick swap.
 	sleep(0.1)
-	self.CanFire = true
+	self.CanFire = true -- ^^
 	
 	return self.WeaponModule.Crosshair, self.WeaponModule.Crosshair_Size
 	
 end
 
-local function lerp(a, b, c)
-	return a + ((b - a) * c)
-end
 
-function isGrounded(rootPart, Height)
-	
-	local params = RaycastParams.new()
-
-	params.FilterType = Enum.RaycastFilterType.Blacklist
-	
-	params.FilterDescendantsInstances = rootPart.Parent:GetDescendants()
-	
-	local result = workspace:Raycast(rootPart.Position, Vector3.new(0,-1,0) * Height, params)
-	
-	if result then
-		return true
-	end
-	
-end
 
 local lastXBob = 0
 local currentX = 0
