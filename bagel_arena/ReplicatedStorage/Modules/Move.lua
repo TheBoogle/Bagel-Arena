@@ -1,4 +1,5 @@
-
+-- Written by RVVZ found on the developer forum, modified by Boogagle
+-- https://devforum.roblox.com/t/simulating-smoother-character-movement/776344
 
 local SM = {}
 
