@@ -11,4 +11,11 @@ If you have questions or need help contact me on Discord
 > Boogle#4509
 
 
+## Project Ideas
 
+* Get it up and running on Studio
+* Make some custom weapons
+* Try your best to find out what everything does
+* Add more cross hairs
+* Optimize the viewmodels
+* Write custom movement

@@ -1,3 +1,5 @@
+-- Viewmodel framework and other weapon things, some code in here may be a bit odd.
+
 local module = {}
 local MT = {__index = module}
 local self = {}
