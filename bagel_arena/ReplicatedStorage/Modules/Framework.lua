@@ -15,6 +15,8 @@ GlobalSpring.Damper = 0.35
 
 local TAU = math.pi * 2
 
+local lastXBob = 0
+local currentX = 0
 
 local RS = game:GetService('RunService')
 
@@ -186,8 +188,7 @@ end
 
 
 
-local lastXBob = 0
-local currentX = 0
+
 function module:Update(args)
 	
 	local rotation = args.MouseDelta
