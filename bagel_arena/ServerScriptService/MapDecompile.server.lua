@@ -1,3 +1,6 @@
+-- This script was intended for use with CloneTrooper's VMF importer, it helped optimize maps into something uploadable to Roblox.
+
+
 local Map = game.Workspace.world
 local Groups = {}
 
